@@ -1,56 +1,28 @@
 #pragma once
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
+#include "FraktalLookAndFeel.h"
 
-class OscilloscopeComponent : public juce::Component, public juce::Timer
-{
-public:
-    OscilloscopeComponent(Fraktal611AudioProcessor& p):proc(p){startTimerHz(30);}
-    void timerCallback() override { proc.getScopeData(scopeData); repaint(); }
-    void paint(juce::Graphics& g) override
-    {
-        auto b=getLocalBounds().toFloat();
-        g.fillAll(juce::Colour(0xFF080808));
-        g.setColour(juce::Colour(0xFF1A1A1A)); g.drawRect(b,1.f);
-        g.setColour(juce::Colour(0xFF161616));
-        g.drawHorizontalLine((int)b.getCentreY(),b.getX(),b.getRight());
-        juce::Path p; bool started=false;
-        float cy=b.getCentreY(), w=b.getWidth();
-        for(int i=0;i<Fraktal611AudioProcessor::SCOPE_SIZE;++i){
-            float x=b.getX()+(float)i/Fraktal611AudioProcessor::SCOPE_SIZE*w;
-            float y=cy-scopeData[i]*cy*0.82f;
-            if(!started){p.startNewSubPath(x,y);started=true;}else p.lineTo(x,y);
-        }
-        g.setColour(juce::Colour(0xFFC8FF00));
-        g.strokePath(p,juce::PathStrokeType(1.2f));
-    }
-private:
-    Fraktal611AudioProcessor& proc;
-    std::array<float,Fraktal611AudioProcessor::SCOPE_SIZE> scopeData{};
-};
-
+// MIDI-Learn-faehiger Slider (Rotary)
 class MidiLearnSlider : public juce::Slider
 {
 public:
-    MidiLearnSlider(Fraktal611AudioProcessor& p,const juce::String& id)
-        :proc(p),paramId(id){}
+    MidiLearnSlider(Fraktal611AudioProcessor& p, const juce::String& id) : proc(p), paramId(id)
+    {
+        setSliderStyle(juce::Slider::Rotary);
+        setTextBoxStyle(juce::Slider::NoTextBox,false,0,0);
+    }
     void mouseDown(const juce::MouseEvent& e) override
     {
-        if(e.mods.isRightButtonDown()){
-            juce::PopupMenu m;
-            m.addItem(1,"MIDI Learn");
-            for(auto& kv:proc.getCCMap())
-                if(kv.second==paramId) m.addItem(2,"Clear CC "+juce::String(kv.first));
-            m.showMenuAsync(juce::PopupMenu::Options(),[this](int r){
-                if(r==1)proc.startMidiLearn(paramId);});
-        } else juce::Slider::mouseDown(e);
+        if(e.mods.isRightButtonDown()){proc.startMidiLearn(paramId);return;}
+        juce::Slider::mouseDown(e);
     }
-private:
-    Fraktal611AudioProcessor& proc; juce::String paramId;
+    Fraktal611AudioProcessor& proc;
+    juce::String paramId;
 };
 
 class Fraktal611AudioProcessorEditor : public juce::AudioProcessorEditor,
-                                        public juce::Timer
+                                       public juce::Timer
 {
 public:
     Fraktal611AudioProcessorEditor(Fraktal611AudioProcessor&);
@@ -61,133 +33,167 @@ public:
 
 private:
     Fraktal611AudioProcessor& processor;
-    const juce::Colour C_BG{0xFF080808},C_ACCENT{0xFFC8FF00},
-                       C_DIM{0xFF2A2A2A},C_MUTED{0xFF555555};
+    FraktalLookAndFeel laf;
 
-    OscilloscopeComponent scope{processor};
-    juce::MidiKeyboardComponent keyboard{processor.keyboardState,
-        juce::MidiKeyboardComponent::horizontalKeyboard};
-
-    // ── ComboBoxes ────────────────────────────────────────────────
-    juce::ComboBox waveSelector,wave2Selector;
-    juce::ComboBox osc1OctBox,osc2OctBox;
-    juce::ComboBox filterTypeBox;
-    juce::ComboBox stutterModeBox,stutterDivBox;
-    juce::ComboBox lfo2TargetBox;
-    juce::ComboBox arpModeBox,arpDivBox,arpOctBox;
-    juce::ComboBox smpRootBox,smpLoopBox;
-    juce::ComboBox smp2RootBox;
-
-    // ── Toggles ───────────────────────────────────────────────────
-    juce::ToggleButton osc1OnBtn{""},osc2OnBtn{""}; // Section-Header zeigt "OSC 1/2" bereits
-    juce::ToggleButton osc3OnBtn{""}, osc4OnBtn{""};
-    juce::ToggleButton osc1FOnBtn{"LP"},osc1FHPBtn{"HP"};
-    juce::ToggleButton osc2FOnBtn{"LP"},osc2FHPBtn{"HP"};
-    juce::ToggleButton smp1FOnBtn{"FILT"}, smp2FOnBtn{"FILT"};
-    juce::ToggleButton secFilterBtn{"FILTER"},secFXBtn{"FX"},secLFO2Btn{"LFO2"};
-    juce::ToggleButton monoBtn{"MONO"};
-    juce::TextButton   panicBtn{"PANIC"};
-    juce::ToggleButton arpOnBtn{"ARP ON"};
-
-    // ── Knobs OSC1 ────────────────────────────────────────────────
-    MidiLearnSlider pwmKnob     {processor,"pwm"},     osc1VolKnob  {processor,"osc1Vol"};
-    MidiLearnSlider gran1Knob   {processor,"gran1"},   gran2Knob    {processor,"gran2"};
-    MidiLearnSlider osc1FCKnob  {processor,"osc1FilterCutoff"};
-    // OSC2
-    MidiLearnSlider osc2VolKnob {processor,"osc2Vol"}, osc2DetKnob  {processor,"osc2Detune"};
-    MidiLearnSlider osc2PwmKnob {processor,"osc2Pwm"};
-    MidiLearnSlider osc2FCKnob  {processor,"osc2FilterCutoff"};
-    // FILTER
-    MidiLearnSlider cutoffKnob    {processor,"cutoff"},   resonanceKnob{processor,"resonance"};
-    MidiLearnSlider filterEnvKnob {processor,"filterEnvAmt"},driveKnob{processor,"drive"};
-    MidiLearnSlider lfoRateKnob   {processor,"lfoRate"},  lfoDepthKnob {processor,"lfoDepth"};
-    // ADSR
-    MidiLearnSlider attackKnob  {processor,"attack"},  decayKnob  {processor,"decay"};
-    MidiLearnSlider sustainKnob {processor,"sustain"}, releaseKnob{processor,"release"};
-    MidiLearnSlider portaKnob   {processor,"portamento"};
-    // FX
-    MidiLearnSlider chaosKnob    {processor,"chaos"},    chaos2Knob   {processor,"chaos2"};
-    MidiLearnSlider stutterKnob  {processor,"stutter"},  morphKnob    {processor,"morph"};
-    MidiLearnSlider morphAutoKnob{processor,"morphAuto"},phaseDestKnob{processor,"phaseDest"};
-    MidiLearnSlider timeFoldKnob {processor,"timeFold"};
-    // SMP1
-    MidiLearnSlider osc3VolKnob  {processor,"osc3Vol"},  smpStartKnob {processor,"smpStart"};
-    MidiLearnSlider smpEndKnob   {processor,"smpEnd"},   smp1FCKnob   {processor,"smp1FilterCutoff"};
-    // SMP2
-    MidiLearnSlider osc4VolKnob  {processor,"osc4Vol"},  smp2StartKnob{processor,"smp2Start"};
-    MidiLearnSlider smp2EndKnob  {processor,"smp2End"};
-    MidiLearnSlider smp2GrainKnob{processor,"smp2GrainRate"};
-    MidiLearnSlider smp2AccKnob  {processor,"smp2StutterAcc"};
-    MidiLearnSlider smp2FCKnob   {processor,"smp2FilterCutoff"};
-    // LFO2
-    MidiLearnSlider lfo2AttackKnob {processor,"lfo2Attack"}, lfo2DecayKnob  {processor,"lfo2Decay"};
-    MidiLearnSlider lfo2RateKnob   {processor,"lfo2Rate"},   lfo2DepthKnob  {processor,"lfo2Depth"};
-    MidiLearnSlider lfo2SustainKnob{processor,"lfo2Sustain"},lfo2ReleaseKnob{processor,"lfo2Release"};
-    // MASTER
-    MidiLearnSlider delayMixKnob {processor,"delayMix"},  delayTimeKnob{processor,"delayTime"};
-    MidiLearnSlider delayFBKnob  {processor,"delayFeedback"};
-    MidiLearnSlider reverbMixKnob{processor,"reverbMix"}, reverbSizeKnob{processor,"reverbSize"};
-    MidiLearnSlider uniDetuneKnob{processor,"unisonDetune"},uniSpreadKnob{processor,"unisonSpread"};
-    MidiLearnSlider volumeKnob   {processor,"volume"};
-
-    // ── Labels ────────────────────────────────────────────────────
-    juce::Label pwmLabel,osc1VolLabel,gran1Label,gran2Label,osc1FCLabel;
-    juce::Label osc2VolLabel,osc2DetLabel,osc2PwmLabel,osc2FCLabel;
-    juce::Label cutoffLabel,resonanceLabel,filterEnvLabel,driveLabel,lfoRateLabel,lfoDepthLabel;
-    juce::Label attackLabel,decayLabel,sustainLabel,releaseLabel,portaLabel;
-    juce::Label chaosLabel,chaos2Label,stutterLabel,morphLabel,morphAutoLabel,phaseDestLabel,timeFoldLabel;
-    juce::Label osc3VolLabel,smpStartLabel,smpEndLabel,smp1FCLabel;
-    juce::Label osc4VolLabel,smp2StartLabel,smp2EndLabel,smp2GrainLabel,smp2AccLabel,smp2FCLabel;
-    juce::Label lfo2AttackLabel,lfo2DecayLabel,lfo2RateLabel,lfo2DepthLabel,lfo2SustainLabel,lfo2ReleaseLabel;
-    juce::Label delayMixLabel,delayTimeLabel,delayFBLabel,reverbMixLabel,reverbSizeLabel;
-    juce::Label uniDetuneLabel,uniSpreadLabel,volumeLabel;
-
-    // ── Sample file labels + buttons ──────────────────────────────
-    juce::Label      smpFileLabel, smp2FileLabel;
-    juce::TextButton smpLoadBtn{"LOAD SAMPLE"}, smp2LoadBtn{"LOAD SAMPLE"};
-    std::unique_ptr<juce::FileChooser> fileChooser, fileChooser2;
-
-    // ── Preset ────────────────────────────────────────────────────
-    juce::ComboBox   presetCategoryBox,presetNameBox;
-    juce::TextButton presetSaveBtn{"SAVE"},presetLoadBtn{"LOAD"},randomBtn{"RANDOM"};
-    juce::TextEditor presetNameEdit;
-
-    // ── Attachments ───────────────────────────────────────────────
     using SA=juce::AudioProcessorValueTreeState::SliderAttachment;
     using CA=juce::AudioProcessorValueTreeState::ComboBoxAttachment;
     using BA=juce::AudioProcessorValueTreeState::ButtonAttachment;
 
-    std::unique_ptr<CA> waveAttach,wave2Attach,osc1OctAttach,osc2OctAttach;
-    std::unique_ptr<CA> filterTypeAttach,stutterModeAttach,stutterDivAttach;
-    std::unique_ptr<CA> lfo2TargetAttach,arpModeAttach,arpDivAttach,arpOctAttach;
-    std::unique_ptr<CA> smpRootAttach,smpLoopAttach,smp2RootAttach;
-    std::unique_ptr<BA> osc1OnAttach,osc2OnAttach,osc3OnAttach,osc4OnAttach;
-    std::unique_ptr<BA> osc1FOnAttach,osc1FHPAttach,osc2FOnAttach,osc2FHPAttach;
-    std::unique_ptr<BA> smp1FOnAttach,smp2FOnAttach;
-    std::unique_ptr<BA> secFilterAttach,secFXAttach,secLFO2Attach,arpOnAttach,monoAttach;
-    std::unique_ptr<SA> pwmAttach,osc1VolAttach,gran1Attach,gran2Attach,osc1FCAttach;
-    std::unique_ptr<SA> osc2VolAttach,osc2DetAttach,osc2PwmAttach,osc2FCAttach;
-    std::unique_ptr<SA> cutoffAttach,resonanceAttach,filterEnvAttach,driveAttach;
-    std::unique_ptr<SA> lfoRateAttach,lfoDepthAttach;
-    std::unique_ptr<SA> attackAttach,decayAttach,sustainAttach,releaseAttach,portaAttach;
-    std::unique_ptr<SA> chaosAttach,chaos2Attach,stutterAttach,morphAttach;
-    std::unique_ptr<SA> morphAutoAttach,phaseDestAttach,timeFoldAttach;
-    std::unique_ptr<SA> osc3VolAttach,smpStartAttach,smpEndAttach,smp1FCAttach;
-    std::unique_ptr<SA> osc4VolAttach,smp2StartAttach,smp2EndAttach;
-    std::unique_ptr<SA> smp2GrainAttach,smp2AccAttach,smp2FCAttach;
-    std::unique_ptr<SA> lfo2AttackAttach,lfo2DecayAttach,lfo2RateAttach,lfo2DepthAttach;
-    std::unique_ptr<SA> lfo2SustainAttach,lfo2ReleaseAttach;
-    std::unique_ptr<SA> delayMixAttach,delayTimeAttach,delayFBAttach;
-    std::unique_ptr<SA> reverbMixAttach,reverbSizeAttach;
-    std::unique_ptr<SA> uniDetuneAttach,uniSpreadAttach,volumeAttach;
+    // ── OSC 1 ─────────────────────────────────────────────────────
+    juce::ComboBox waveSelector;
+    MidiLearnSlider osc1VolKnob{processor,"osc1Vol"},osc1FilterCutKnob{processor,"osc1FilterCutoff"};
+    juce::ComboBox osc1OctBox;
+    juce::ToggleButton osc1OnBtn{"ON"},osc1FilterOnBtn{"F"},osc1FilterHPBtn{"HP"};
+    MidiLearnSlider pwmKnob{processor,"pwm"};
+    juce::Label osc1VolLabel,osc1OctLabel,pwmLabel,osc1FilterCutLabel;
+    std::unique_ptr<SA> osc1VolAt,osc1FilterCutAt,pwmAt;
+    std::unique_ptr<CA> waveAt,osc1OctAt;
+    std::unique_ptr<BA> osc1OnAt,osc1FilterOnAt,osc1FilterHPAt;
 
-    void styleKnob(juce::Slider&,juce::Label&,const juce::String&,juce::Colour);
-    void styleCombo(juce::ComboBox&,juce::Colour);
-    void styleToggle(juce::ToggleButton&,juce::Colour);
-    void drawSection(juce::Graphics&,const juce::String&,juce::Rectangle<int>,juce::Colour,bool on=true);
-    void refreshPresetList();
-    void randomiseAll();
-    void updateKeyboardColour();
+    // ── OSC 2 ─────────────────────────────────────────────────────
+    juce::ComboBox wave2Selector;
+    MidiLearnSlider osc2VolKnob{processor,"osc2Vol"},osc2DetuneKnob{processor,"osc2Detune"};
+    MidiLearnSlider osc2PwmKnob{processor,"osc2Pwm"},osc2FilterCutKnob{processor,"osc2FilterCutoff"};
+    juce::ComboBox osc2OctBox;
+    juce::ToggleButton osc2OnBtn{"ON"},osc2FilterOnBtn{"F"},osc2FilterHPBtn{"HP"};
+    juce::Label osc2VolLabel,osc2DetLabel,osc2OctLabel,osc2PwmLabel,osc2FilterCutLabel;
+    std::unique_ptr<SA> osc2VolAt,osc2DetuneAt,osc2PwmAt,osc2FilterCutAt;
+    std::unique_ptr<CA> wave2At,osc2OctAt;
+    std::unique_ptr<BA> osc2OnAt,osc2FilterOnAt,osc2FilterHPAt;
+
+    // ── Filter + LFO ──────────────────────────────────────────────
+    MidiLearnSlider cutoffKnob{processor,"cutoff"},resonanceKnob{processor,"resonance"};
+    MidiLearnSlider driveKnob{processor,"drive"},envAmtKnob{processor,"filterEnvAmt"};
+    MidiLearnSlider lfoRateKnob{processor,"lfoRate"},lfoDepthKnob{processor,"lfoDepth"};
+    juce::ComboBox filterTypeBox,lfoRateMultBox;
+    juce::ToggleButton filterOnBtn{"FLT"},fxOnBtn{"FX"};
+    juce::Label cutoffLabel,resLabel,driveLabel,envAmtLabel,lfoRateLabel,lfoDepthLabel,lfoMultLabel;
+    std::unique_ptr<SA> cutoffAt,resonanceAt,driveAt,envAmtAt,lfoRateAt,lfoDepthAt;
+    std::unique_ptr<CA> filterTypeAt,lfoRateMultAt;
+    std::unique_ptr<BA> filterOnAt,fxOnAt;
+
+    // ── ADSR ──────────────────────────────────────────────────────
+    MidiLearnSlider attackKnob{processor,"attack"},decayKnob{processor,"decay"};
+    MidiLearnSlider sustainKnob{processor,"sustain"},releaseKnob{processor,"release"};
+    juce::Label attackLabel,decayLabel,sustainLabel,releaseLabel;
+    std::unique_ptr<SA> attackAt,decayAt,sustainAt,releaseAt;
+
+    // ── FX (Chaos, Fractal, Stutter, Morph) ──────────────────────
+    MidiLearnSlider chaosKnob{processor,"chaos"},chaos2Knob{processor,"chaos2"};
+    MidiLearnSlider stutterKnob{processor,"stutter"},morphKnob{processor,"morph"};
+    MidiLearnSlider morphAutoKnob{processor,"morphAuto"},phaseDestKnob{processor,"phaseDest"};
+    MidiLearnSlider timeFoldKnob{processor,"timeFold"};
+    juce::ComboBox stutterDivBox;
+    juce::Label chaosLabel,chaos2Label,stutterLabel,morphLabel,morphAutoLabel,phaseDestLabel,timeFoldLabel;
+    std::unique_ptr<SA> chaosAt,chaos2At,stutterAt,morphAt,morphAutoAt,phaseDestAt,timeFoldAt;
+    std::unique_ptr<CA> stutterDivAt;
+
+    // ── SMP 1 ────────────────────────────────────────────────────
+    juce::TextButton loadSmpBtn{"LOAD"};
+    MidiLearnSlider smpStartKnob{processor,"smpStart"},smpEndKnob{processor,"smpEnd"};
+    MidiLearnSlider osc3VolKnob{processor,"osc3Vol"},smpFilterCutKnob{processor,"smp1FilterCutoff"};
+    MidiLearnSlider smpPitchOctKnob{processor,"smpPitchOct"};
+    juce::ComboBox smpRootBox,smpLoopBox;
+    juce::ToggleButton osc3OnBtn{"ON"},smpFilterOnBtn{"F"};
+    juce::Label smpLabel,smpStartLabel,smpEndLabel,osc3VolLabel,smpPitchOctLabel,smpFilterCutLabel;
+    std::unique_ptr<SA> smpStartAt,smpEndAt,osc3VolAt,smpFilterCutAt,smpPitchOctAt;
+    std::unique_ptr<CA> smpRootAt,smpLoopAt;
+    std::unique_ptr<BA> osc3OnAt,smpFilterOnAt;
+
+    // ── SMP 2 ────────────────────────────────────────────────────
+    juce::TextButton loadSmp2Btn{"LOAD"};
+    MidiLearnSlider smp2StartKnob{processor,"smp2Start"},smp2EndKnob{processor,"smp2End"};
+    MidiLearnSlider osc4VolKnob{processor,"osc4Vol"},smp2GrainRateKnob{processor,"smp2GrainRate"};
+    MidiLearnSlider smp2StutterAccKnob{processor,"smp2StutterAcc"},smp2FilterCutKnob{processor,"smp2FilterCutoff"};
+    MidiLearnSlider smp2PitchOctKnob{processor,"smp2PitchOct"};
+    juce::ComboBox smp2RootBox;
+    juce::ToggleButton osc4OnBtn{"ON"},smp2FilterOnBtn{"F"},smp2RevBtn{"REV"};
+    juce::Label smp2Label,smp2StartLabel,smp2EndLabel,osc4VolLabel;
+    juce::Label smp2GrainRateLabel,smp2StutterAccLabel,smp2PitchOctLabel,smp2FilterCutLabel;
+    std::unique_ptr<SA> smp2StartAt,smp2EndAt,osc4VolAt,smp2GrainRateAt,smp2StutterAccAt,smp2FilterCutAt,smp2PitchOctAt;
+    std::unique_ptr<CA> smp2RootAt;
+    std::unique_ptr<BA> osc4OnAt,smp2FilterOnAt,smp2RevAt;
+
+    // ── LFO 2 ────────────────────────────────────────────────────
+    MidiLearnSlider lfo2RateKnob{processor,"lfo2Rate"},lfo2DepthKnob{processor,"lfo2Depth"};
+    MidiLearnSlider lfo2AttackKnob{processor,"lfo2Attack"},lfo2DecayKnob{processor,"lfo2Decay"};
+    MidiLearnSlider lfo2SustainKnob{processor,"lfo2Sustain"},lfo2ReleaseKnob{processor,"lfo2Release"};
+    juce::ComboBox lfo2TargetBox,lfo2RateMultBox;
+    juce::ToggleButton lfo2OnBtn{"ON"};
+    juce::Label lfo2RateLabel,lfo2DepthLabel,lfo2AtkLabel,lfo2DecLabel,lfo2SusLabel,lfo2RelLabel,lfo2MultLabel;
+    std::unique_ptr<SA> lfo2RateAt,lfo2DepthAt,lfo2AttackAt,lfo2DecayAt,lfo2SustainAt,lfo2ReleaseAt;
+    std::unique_ptr<CA> lfo2TargetAt,lfo2RateMultAt;
+    std::unique_ptr<BA> lfo2OnAt;
+
+    // ── Arp ──────────────────────────────────────────────────────
+    juce::ToggleButton arpOnBtn{"ON"};
+    juce::ComboBox arpModeBox,arpDivBox,arpOctBox;
+    juce::Label arpModeLabel,arpDivLabel,arpOctLabel;
+    std::unique_ptr<CA> arpModeAt,arpDivAt,arpOctAt;
+    std::unique_ptr<BA> arpOnAt;
+
+    // ── Master ───────────────────────────────────────────────────
+    MidiLearnSlider volumeKnob{processor,"volume"},delayMixKnob{processor,"delayMix"};
+    MidiLearnSlider delayTimeKnob{processor,"delayTime"},delayFBKnob{processor,"delayFeedback"};
+    MidiLearnSlider reverbMixKnob{processor,"reverbMix"},reverbSizeKnob{processor,"reverbSize"};
+    MidiLearnSlider portaKnob{processor,"portamento"},unisonDetuneKnob{processor,"unisonDetune"};
+    MidiLearnSlider gran1Knob{processor,"gran1"},gran2Knob{processor,"gran2"};
+    juce::ToggleButton monoBtn{"MONO"};
+    juce::TextButton panicBtn{"PANIC"};
+    juce::Label volumeLabel,delayMixLabel,delayTimeLabel,delayFBLabel;
+    juce::Label reverbMixLabel,reverbSizeLabel,portaLabel,uniDetLabel,gran1Label,gran2Label;
+    std::unique_ptr<SA> volumeAt,delayMixAt,delayTimeAt,delayFBAt,reverbMixAt,reverbSizeAt;
+    std::unique_ptr<SA> portaAt,unisonDetuneAt,gran1At,gran2At;
+    std::unique_ptr<BA> monoAt;
+
+    // ── Preset ───────────────────────────────────────────────────
+    juce::TextButton prevPresetBtn{"<"},nextPresetBtn{">"};
+    juce::TextButton savePresetBtn{"SAVE"},loadPresetFileBtn{"OPEN"};
+    juce::Label presetNameLabel;
+
+    // ── MIDI keyboard ────────────────────────────────────────────
+    juce::MidiKeyboardComponent keyboard;
+
+    // ── Oscilloscope ─────────────────────────────────────────────
+    std::array<float,Fraktal611AudioProcessor::SCOPE_SIZE> scopeData{};
+
+    // ─────────────────────────────────────────────────────────────
+    // REIHE 3: neue Features
+    // ─────────────────────────────────────────────────────────────
+
+    // Lorenz Navigator
+    MidiLearnSlider lorenzSigmaKnob{processor,"lorenzSigma"},lorenzRhoKnob{processor,"lorenzRho"};
+    MidiLearnSlider lorenzBetaKnob{processor,"lorenzBeta"},lorenzDtKnob{processor,"lorenzDt"};
+    juce::Label lorenzSigmaLabel,lorenzRhoLabel,lorenzBetaLabel,lorenzDtLabel;
+    std::unique_ptr<SA> lorenzSigmaAt,lorenzRhoAt,lorenzBetaAt,lorenzDtAt;
+
+    // Gray-Scott
+    juce::ToggleButton gsOnBtn{"GS ON"};
+    MidiLearnSlider gsFeedKnob{processor,"gsFeed"},gsKillKnob{processor,"gsKill"};
+    MidiLearnSlider gsDaKnob{processor,"gsDa"},gsDbKnob{processor,"gsDb"};
+    MidiLearnSlider gsVolKnob{processor,"gsVol"};
+    juce::Label gsFeedLabel,gsKillLabel,gsDaLabel,gsDbLabel,gsVolLabel;
+    std::unique_ptr<SA> gsFeedAt,gsKillAt,gsDaAt,gsDbAt,gsVolAt;
+    std::unique_ptr<BA> gsOnAt;
+
+    // Weierstrass
+    MidiLearnSlider weiDimKnob{processor,"weiDimension"};
+    juce::ComboBox weiLacBox,weiDepthBox;
+    juce::Label weiDimLabel,weiLacLabel,weiDepthLabel;
+    std::unique_ptr<SA> weiDimAt;
+    std::unique_ptr<CA> weiLacAt,weiDepthAt;
+
+    // Evolutionary Drift
+    juce::ToggleButton driftOnBtn{"DRIFT"};
+    MidiLearnSlider driftSpeedKnob{processor,"driftSpeed"},driftRangeKnob{processor,"driftRange"};
+    juce::ComboBox driftModeBox;
+    juce::Label driftSpeedLabel,driftRangeLabel,driftModeLabel;
+    std::unique_ptr<SA> driftSpeedAt,driftRangeAt;
+    std::unique_ptr<CA> driftModeAt;
+    std::unique_ptr<BA> driftOnAt;
+
+    // Poly-temporale LFOs
+    juce::Label lfoMultR3Label,lfo2MultR3Label;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Fraktal611AudioProcessorEditor)
 };
