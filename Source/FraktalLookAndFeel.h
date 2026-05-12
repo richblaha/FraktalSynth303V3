@@ -24,14 +24,14 @@ public:
         float trackW = juce::jmax(2.f,radius*0.15f);
         float arcR   = radius-trackW*0.6f;
         // Background track
-        {juce::Path bg;bg.addArc(centre.x-arcR,centre.y-arcR,arcR*2.f,arcR*2.f,rotaryStartAngle,rotaryEndAngle,true);g.setColour(juce::Colour(0xFF252525));g.strokePath(bg,juce::PathStrokeType(trackW,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));}
+        {juce::Path bg;bg.addArc(centre.x-arcR,centre.y-arcR,arcR*2.f,arcR*2.f,rotaryStartAngle,rotaryEndAngle,true);g.setColour(juce::Colour(0xFF2E2E2E));g.strokePath(bg,juce::PathStrokeType(trackW,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));}
         // Value arc
         float toAngle=rotaryStartAngle+sliderPos*(rotaryEndAngle-rotaryStartAngle);
         auto  ac=slider.findColour(juce::Slider::rotarySliderFillColourId);
         {juce::Path val;val.addArc(centre.x-arcR,centre.y-arcR,arcR*2.f,arcR*2.f,rotaryStartAngle,toAngle,true);g.setColour(ac);g.strokePath(val,juce::PathStrokeType(trackW,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));}
         // Inner fill
         float innerR=arcR-trackW*0.5f-1.f;
-        g.setColour(juce::Colour(0xFF0E0E0E));
+        g.setColour(juce::Colour(0xFF1A1A1A));
         g.fillEllipse(centre.x-innerR,centre.y-innerR,innerR*2.f,innerR*2.f);
         // Indicator line
         float lineLen=innerR*0.78f;
@@ -56,9 +56,9 @@ public:
             else if(std::abs(v)<10.0)txt=juce::String(v,1);
             else if(std::abs(v)<999.5)txt=juce::String((int)std::round(v));
             else txt=juce::String(v/1000.0,1)+"k";
-            g.setFont(juce::FontOptions("Helvetica Neue",6.0f,juce::Font::plain));
-            g.setColour(ac.withAlpha(0.72f));
-            g.drawText(txt,(int)(centre.x-innerR+1),(int)(centre.y-5.f),(int)(innerR*2.f-2),10,juce::Justification::centred);
+            g.setFont(juce::FontOptions("Helvetica Neue",8.5f,juce::Font::plain));
+            g.setColour(juce::Colours::white.withAlpha(0.88f));
+            g.drawText(txt,(int)(centre.x-innerR+1),(int)(centre.y-6.f),(int)(innerR*2.f-2),12,juce::Justification::centred);
         }
     }
 };
